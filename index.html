@@ -59,6 +59,23 @@
       padding: 4px 8px;
       font-size: 1rem;
     }
+    .nav-button {
+      position: absolute;
+      bottom: 1rem;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+      border-radius: 0.25rem;
+      z-index: 6;
+    }
+    #prevBtn {
+      left: 1rem;
+    }
+    #nextBtn {
+      right: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -73,6 +90,8 @@
   </div>
   <div id="scannedContainer">
     <canvas id="scannedImage"></canvas>
+    <button id="prevBtn" class="nav-button" onclick="goToPrev()">◀ 前へ</button>
+    <button id="nextBtn" class="nav-button" onclick="goToNext()">次へ ▶</button>
   </div>
 
   <script>
@@ -83,6 +102,8 @@
     const opacitySlider = document.getElementById('opacityRange');
     const cameraSelect = document.getElementById('cameraSelect');
     const menuControls = document.getElementById('menuControls');
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
 
     let capturedImages = [];
     let currentIndex = 0;
@@ -91,7 +112,6 @@
     let scale = 1, offsetX = 0, offsetY = 0, startX = 0, startY = 0;
     let isDragging = false;
     let lastTouchDist = null;
-    let swipeStartX = null;
 
     async function getCameras() {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -147,6 +167,26 @@
       ctx.putImageData(imgData, 0, 0);
       scannedImage.style.opacity = opacitySlider.value;
       updateTransform();
+      updateNavButtons();
+    }
+
+    function updateNavButtons() {
+      prevBtn.style.display = currentIndex > 0 ? 'block' : 'none';
+      nextBtn.style.display = currentIndex < capturedImages.length - 1 ? 'block' : 'none';
+    }
+
+    function goToPrev() {
+      if (currentIndex > 0) {
+        currentIndex--;
+        drawOverlay();
+      }
+    }
+
+    function goToNext() {
+      if (currentIndex < capturedImages.length - 1) {
+        currentIndex++;
+        drawOverlay();
+      }
     }
 
     function toggleWhiteRemoval() {
@@ -169,7 +209,6 @@
         isDragging = true;
         startX = e.touches[0].clientX - offsetX;
         startY = e.touches[0].clientY - offsetY;
-        swipeStartX = e.touches[0].clientX;
       } else if (e.touches.length === 2) {
         isDragging = false;
         lastTouchDist = getDistance(e.touches[0], e.touches[1]);
@@ -193,25 +232,9 @@
       }
     }, { passive: false });
 
-    container.addEventListener('touchend', e => {
+    container.addEventListener('touchend', () => {
       isDragging = false;
       lastTouchDist = null;
-
-      // スワイプ左右検出
-      if (e.changedTouches.length === 1 && swipeStartX !== null) {
-        const endX = e.changedTouches[0].clientX;
-        const diffX = endX - swipeStartX;
-        if (Math.abs(diffX) > 50) {
-          if (diffX < 0 && currentIndex < capturedImages.length - 1) {
-            currentIndex++;
-            drawOverlay();
-          } else if (diffX > 0 && currentIndex > 0) {
-            currentIndex--;
-            drawOverlay();
-          }
-        }
-        swipeStartX = null;
-      }
     });
 
     function getDistance(touch1, touch2) {
