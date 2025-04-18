@@ -87,6 +87,7 @@
     let currentStream = null;
     let scale = 1, offsetX = 0, offsetY = 0, startX = 0, startY = 0;
     let isDragging = false;
+    let lastTouchDist = null;
 
     async function getCameras() {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -135,7 +136,7 @@
       ctx.clearRect(0, 0, scannedImage.width, scannedImage.height);
       ctx.putImageData(imgData, 0, 0);
       scannedImage.style.opacity = opacitySlider.value;
-      scannedImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+      updateTransform();
     }
 
     function toggleWhiteRemoval() {
@@ -143,32 +144,51 @@
       drawOverlay();
     }
 
-    opacitySlider.addEventListener('input', () => {
-      scannedImage.style.opacity = opacitySlider.value;
-    });
+    opacitySlider.addEventListener('input', () => scannedImage.style.opacity = opacitySlider.value);
 
-    container.addEventListener('mousedown', e => {
-      isDragging = true;
-      startX = e.clientX - offsetX;
-      startY = e.clientY - offsetY;
-    });
-
-    container.addEventListener('mousemove', e => {
-      if (!isDragging) return;
-      offsetX = e.clientX - startX;
-      offsetY = e.clientY - startY;
+    function updateTransform() {
       scannedImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    }
+
+    // タッチ操作対応
+    container.addEventListener('touchstart', e => {
+      if (e.touches.length === 1) {
+        isDragging = true;
+        startX = e.touches[0].clientX - offsetX;
+        startY = e.touches[0].clientY - offsetY;
+      } else if (e.touches.length === 2) {
+        isDragging = false;
+        lastTouchDist = getDistance(e.touches[0], e.touches[1]);
+      }
     });
 
-    container.addEventListener('mouseup', () => isDragging = false);
-    container.addEventListener('mouseleave', () => isDragging = false);
-
-    container.addEventListener('wheel', e => {
+    container.addEventListener('touchmove', e => {
       e.preventDefault();
-      const delta = e.deltaY < 0 ? 1.05 : 0.95;
-      scale *= delta;
-      scannedImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+      if (e.touches.length === 1 && isDragging) {
+        offsetX = e.touches[0].clientX - startX;
+        offsetY = e.touches[0].clientY - startY;
+        updateTransform();
+      } else if (e.touches.length === 2) {
+        const currentDist = getDistance(e.touches[0], e.touches[1]);
+        if (lastTouchDist) {
+          const delta = currentDist / lastTouchDist;
+          scale *= delta;
+          updateTransform();
+        }
+        lastTouchDist = currentDist;
+      }
+    }, { passive: false });
+
+    container.addEventListener('touchend', () => {
+      isDragging = false;
+      lastTouchDist = null;
     });
+
+    function getDistance(touch1, touch2) {
+      const dx = touch2.clientX - touch1.clientX;
+      const dy = touch2.clientY - touch1.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
 
     getCameras().then(() => startCamera());
   </script>
