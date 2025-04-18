@@ -15,6 +15,9 @@
       align-items: center;
       padding: 1rem;
     }
+    h1 {
+      margin-bottom: 0.5rem;
+    }
     video, canvas, img {
       max-width: 100%;
       border-radius: 8px;
@@ -40,10 +43,18 @@
       left: 0;
       pointer-events: none;
     }
+    select {
+      font-size: 1rem;
+      padding: 4px;
+      border-radius: 4px;
+    }
   </style>
 </head>
 <body>
   <h1>校正オーバーレイビューア</h1>
+  <label for="cameraSelect">カメラ選択:</label>
+  <select id="cameraSelect"></select>
+
   <div class="container">
     <video id="camera" autoplay playsinline muted></video>
     <canvas id="overlay"></canvas>
@@ -63,13 +74,36 @@
     const overlay = document.getElementById('overlay');
     const ctx = overlay.getContext('2d');
     const opacitySlider = document.getElementById('opacityRange');
+    const cameraSelect = document.getElementById('cameraSelect');
 
     let originalImage = null;
     let removeWhite = true;
+    let currentStream = null;
 
-    async function startCamera() {
+    async function getCameras() {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      cameraSelect.innerHTML = '';
+      videoDevices.forEach((device, index) => {
+        const option = document.createElement('option');
+        option.value = device.deviceId;
+        option.text = device.label || `カメラ ${index + 1}`;
+        cameraSelect.appendChild(option);
+      });
+    }
+
+    async function startCamera(deviceId = null) {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
+      const constraints = {
+        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' }
+      };
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        currentStream = stream;
         video.srcObject = stream;
         video.addEventListener('loadedmetadata', () => {
           overlay.width = video.videoWidth;
@@ -80,6 +114,10 @@
         alert('カメラにアクセスできません: ' + err);
       }
     }
+
+    cameraSelect.addEventListener('change', () => {
+      startCamera(cameraSelect.value);
+    });
 
     function captureImage() {
       const tempCanvas = document.createElement('canvas');
@@ -118,7 +156,7 @@
       overlay.style.opacity = opacitySlider.value;
     });
 
-    startCamera();
+    getCameras().then(() => startCamera());
   </script>
 </body>
 </html>
