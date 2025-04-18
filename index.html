@@ -227,12 +227,12 @@
       } else if (e.touches.length === 2) {
         const currentDist = getDistance(e.touches[0], e.touches[1]);
         if (lastTouchDist) {
-          const delta = currentDist / lastTouchDist;
-          const newScale = scale * delta;
-          const dx = pinchCenter.x - offsetX;
-          const dy = pinchCenter.y - offsetY;
-          offsetX -= dx * (newScale / scale - 1);
-          offsetY -= dy * (newScale / scale - 1);
+          const newScale = scale * (currentDist / lastTouchDist);
+          const rect = container.getBoundingClientRect();
+          const centerX = pinchCenter.x - rect.left;
+          const centerY = pinchCenter.y - rect.top;
+          offsetX = centerX - (centerX - offsetX) * (newScale / scale);
+          offsetY = centerY - (centerY - offsetY) * (newScale / scale);
           scale = newScale;
           updateTransform();
         }
