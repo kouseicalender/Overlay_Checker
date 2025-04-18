@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>校正補助オーバーレイアプリ</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      margin: 0;
+      background: #1a1a1a;
+      font-family: sans-serif;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 1rem;
+    }
+    video, canvas, img {
+      max-width: 100%;
+      border-radius: 8px;
+    }
+    .controls {
+      margin: 1rem 0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: center;
+    }
+    .controls input[type="range"] {
+      width: 200px;
+    }
+    .container {
+      position: relative;
+      width: 100%;
+      max-width: 800px;
+    }
+    #overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>校正オーバーレイビューア</h1>
+  <div class="container">
+    <video id="camera" autoplay playsinline muted></video>
+    <canvas id="overlay"></canvas>
+  </div>
+
+  <div class="controls">
+    <button onclick="captureImage()">📷 原稿を撮影</button>
+    <button onclick="toggleWhiteRemoval()">🧼 白抜きON/OFF</button>
+    <button disabled>🩺 マスク（将来対応）</button>
+    <label>透明度
+      <input type="range" id="opacityRange" min="0" max="1" step="0.01" value="0.5">
+    </label>
+  </div>
+
+  <script>
+    const video = document.getElementById('camera');
+    const overlay = document.getElementById('overlay');
+    const ctx = overlay.getContext('2d');
+    const opacitySlider = document.getElementById('opacityRange');
+
+    let originalImage = null;
+    let removeWhite = true;
+
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+        video.addEventListener('loadedmetadata', () => {
+          overlay.width = video.videoWidth;
+          overlay.height = video.videoHeight;
+          drawOverlay();
+        });
+      } catch (err) {
+        alert('カメラにアクセスできません: ' + err);
+      }
+    }
+
+    function captureImage() {
+      const tempCanvas = document.createElement('canvas');
+      const tempCtx = tempCanvas.getContext('2d');
+      tempCanvas.width = video.videoWidth;
+      tempCanvas.height = video.videoHeight;
+      tempCtx.drawImage(video, 0, 0);
+      originalImage = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      drawOverlay();
+    }
+
+    function drawOverlay() {
+      if (!originalImage) return;
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+      const imageData = new ImageData(new Uint8ClampedArray(originalImage.data), originalImage.width, originalImage.height);
+      if (removeWhite) {
+        for (let i = 0; i < imageData.data.length; i += 4) {
+          const r = imageData.data[i];
+          const g = imageData.data[i + 1];
+          const b = imageData.data[i + 2];
+          if (r > 240 && g > 240 && b > 240) {
+            imageData.data[i + 3] = 0; // アルファ透明
+          }
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+      overlay.style.opacity = opacitySlider.value;
+    }
+
+    function toggleWhiteRemoval() {
+      removeWhite = !removeWhite;
+      drawOverlay();
+    }
+
+    opacitySlider.addEventListener('input', () => {
+      overlay.style.opacity = opacitySlider.value;
+    });
+
+    startCamera();
+  </script>
+</body>
+</html>
