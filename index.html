@@ -109,9 +109,11 @@
     let currentIndex = 0;
     let removeWhite = true;
     let currentStream = null;
-    let scale = 1, offsetX = 0, offsetY = 0, startX = 0, startY = 0;
+    let scale = 1, offsetX = 0, offsetY = 0;
+    let startX = 0, startY = 0;
     let isDragging = false;
     let lastTouchDist = null;
+    let pinchCenter = { x: 0, y: 0 };
 
     async function getCameras() {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -212,6 +214,7 @@
       } else if (e.touches.length === 2) {
         isDragging = false;
         lastTouchDist = getDistance(e.touches[0], e.touches[1]);
+        pinchCenter = getMidpoint(e.touches[0], e.touches[1]);
       }
     });
 
@@ -225,7 +228,12 @@
         const currentDist = getDistance(e.touches[0], e.touches[1]);
         if (lastTouchDist) {
           const delta = currentDist / lastTouchDist;
-          scale *= delta;
+          const newScale = scale * delta;
+          const dx = pinchCenter.x - offsetX;
+          const dy = pinchCenter.y - offsetY;
+          offsetX -= dx * (newScale / scale - 1);
+          offsetY -= dy * (newScale / scale - 1);
+          scale = newScale;
           updateTransform();
         }
         lastTouchDist = currentDist;
@@ -241,6 +249,13 @@
       const dx = touch2.clientX - touch1.clientX;
       const dy = touch2.clientY - touch1.clientY;
       return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getMidpoint(touch1, touch2) {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
     }
 
     getCameras().then(() => startCamera());
