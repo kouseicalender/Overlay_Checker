@@ -12,11 +12,6 @@
       color: #fff;
       overflow: hidden;
     }
-    h1 {
-      text-align: center;
-      padding: 1rem;
-      margin: 0;
-    }
     #camera {
       position: absolute;
       top: 0;
@@ -53,6 +48,12 @@
       flex-wrap: wrap;
       gap: 1rem;
       z-index: 5;
+      background-color: rgba(0, 0, 0, 0.4);
+      padding: 0.5rem;
+      border-radius: 0.5rem;
+    }
+    .controls.hidden {
+      display: none;
     }
     .controls input[type="range"], .controls select, .controls button {
       padding: 4px 8px;
@@ -62,7 +63,7 @@
 </head>
 <body>
   <video id="camera" autoplay playsinline muted></video>
-  <div class="controls">
+  <div class="controls" id="menuControls">
     <select id="cameraSelect"></select>
     <button onclick="captureImage()">📷 原稿を撮影</button>
     <button onclick="toggleWhiteRemoval()">🧼 白抜きON/OFF</button>
@@ -81,6 +82,7 @@
     const ctx = scannedImage.getContext('2d');
     const opacitySlider = document.getElementById('opacityRange');
     const cameraSelect = document.getElementById('cameraSelect');
+    const menuControls = document.getElementById('menuControls');
 
     let originalImage = null;
     let removeWhite = true;
@@ -149,6 +151,11 @@
     function updateTransform() {
       scannedImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
     }
+
+    // タップでメニュー表示ON/OFF切り替え
+    video.addEventListener('click', () => {
+      menuControls.classList.toggle('hidden');
+    });
 
     // タッチ操作対応
     container.addEventListener('touchstart', e => {
