@@ -10,75 +10,83 @@
       background: #1a1a1a;
       font-family: sans-serif;
       color: #fff;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 1rem;
+      overflow: hidden;
     }
     h1 {
-      margin-bottom: 0.5rem;
+      text-align: center;
+      padding: 1rem;
+      margin: 0;
     }
-    video, canvas, img {
-      max-width: 100%;
-      border-radius: 8px;
-    }
-    .controls {
-      margin: 1rem 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      justify-content: center;
-    }
-    .controls input[type="range"] {
-      width: 200px;
-    }
-    .container {
-      position: relative;
-      width: 100%;
-      max-width: 800px;
-    }
-    #overlay {
+    #camera {
       position: absolute;
       top: 0;
       left: 0;
-      pointer-events: none;
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+      z-index: 1;
     }
-    select {
+    #scannedContainer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      height: 50%;
+      background: rgba(255, 255, 255, 0.05);
+      overflow: hidden;
+      touch-action: none;
+      z-index: 3;
+    }
+    #scannedImage {
+      position: absolute;
+      top: 0;
+      left: 0;
+      transform-origin: top left;
+      will-change: transform;
+    }
+    .controls {
+      position: absolute;
+      top: 1rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      z-index: 5;
+    }
+    .controls input[type="range"], .controls select, .controls button {
+      padding: 4px 8px;
       font-size: 1rem;
-      padding: 4px;
-      border-radius: 4px;
     }
   </style>
 </head>
 <body>
-  <h1>校正オーバーレイビューア</h1>
-  <label for="cameraSelect">カメラ選択:</label>
-  <select id="cameraSelect"></select>
-
-  <div class="container">
-    <video id="camera" autoplay playsinline muted></video>
-    <canvas id="overlay"></canvas>
-  </div>
-
+  <video id="camera" autoplay playsinline muted></video>
   <div class="controls">
+    <select id="cameraSelect"></select>
     <button onclick="captureImage()">📷 原稿を撮影</button>
     <button onclick="toggleWhiteRemoval()">🧼 白抜きON/OFF</button>
-    <button disabled>🩺 マスク（将来対応）</button>
     <label>透明度
-      <input type="range" id="opacityRange" min="0" max="1" step="0.01" value="0.5">
+      <input type="range" id="opacityRange" min="0" max="1" step="0.01" value="0.8">
     </label>
+  </div>
+  <div id="scannedContainer">
+    <canvas id="scannedImage"></canvas>
   </div>
 
   <script>
     const video = document.getElementById('camera');
-    const overlay = document.getElementById('overlay');
-    const ctx = overlay.getContext('2d');
+    const scannedImage = document.getElementById('scannedImage');
+    const container = document.getElementById('scannedContainer');
+    const ctx = scannedImage.getContext('2d');
     const opacitySlider = document.getElementById('opacityRange');
     const cameraSelect = document.getElementById('cameraSelect');
 
     let originalImage = null;
     let removeWhite = true;
     let currentStream = null;
+    let scale = 1, offsetX = 0, offsetY = 0, startX = 0, startY = 0;
+    let isDragging = false;
 
     async function getCameras() {
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -93,58 +101,41 @@
     }
 
     async function startCamera(deviceId = null) {
-      if (currentStream) {
-        currentStream.getTracks().forEach(track => track.stop());
-      }
-
-      const constraints = {
-        video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' }
-      };
-
+      if (currentStream) currentStream.getTracks().forEach(track => track.stop());
+      const constraints = { video: deviceId ? { deviceId: { exact: deviceId } } : { facingMode: 'environment' } };
       try {
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         currentStream = stream;
         video.srcObject = stream;
-        video.addEventListener('loadedmetadata', () => {
-          overlay.width = video.videoWidth;
-          overlay.height = video.videoHeight;
-          drawOverlay();
-        });
       } catch (err) {
         alert('カメラにアクセスできません: ' + err);
       }
     }
 
-    cameraSelect.addEventListener('change', () => {
-      startCamera(cameraSelect.value);
-    });
+    cameraSelect.addEventListener('change', () => startCamera(cameraSelect.value));
 
     function captureImage() {
-      const tempCanvas = document.createElement('canvas');
-      const tempCtx = tempCanvas.getContext('2d');
-      tempCanvas.width = video.videoWidth;
-      tempCanvas.height = video.videoHeight;
+      scannedImage.width = video.videoWidth;
+      scannedImage.height = video.videoHeight;
+      const tempCtx = scannedImage.getContext('2d');
       tempCtx.drawImage(video, 0, 0);
-      originalImage = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+      originalImage = tempCtx.getImageData(0, 0, scannedImage.width, scannedImage.height);
       drawOverlay();
     }
 
     function drawOverlay() {
       if (!originalImage) return;
-      ctx.clearRect(0, 0, overlay.width, overlay.height);
-      const imageData = new ImageData(new Uint8ClampedArray(originalImage.data), originalImage.width, originalImage.height);
+      const imgData = new ImageData(new Uint8ClampedArray(originalImage.data), originalImage.width, originalImage.height);
       if (removeWhite) {
-        for (let i = 0; i < imageData.data.length; i += 4) {
-          const r = imageData.data[i];
-          const g = imageData.data[i + 1];
-          const b = imageData.data[i + 2];
-          if (r > 240 && g > 240 && b > 240) {
-            imageData.data[i + 3] = 0; // アルファ透明
-          }
+        for (let i = 0; i < imgData.data.length; i += 4) {
+          const r = imgData.data[i], g = imgData.data[i + 1], b = imgData.data[i + 2];
+          if (r > 240 && g > 240 && b > 240) imgData.data[i + 3] = 0;
         }
       }
-      ctx.putImageData(imageData, 0, 0);
-      overlay.style.opacity = opacitySlider.value;
+      ctx.clearRect(0, 0, scannedImage.width, scannedImage.height);
+      ctx.putImageData(imgData, 0, 0);
+      scannedImage.style.opacity = opacitySlider.value;
+      scannedImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
     }
 
     function toggleWhiteRemoval() {
@@ -153,7 +144,30 @@
     }
 
     opacitySlider.addEventListener('input', () => {
-      overlay.style.opacity = opacitySlider.value;
+      scannedImage.style.opacity = opacitySlider.value;
+    });
+
+    container.addEventListener('mousedown', e => {
+      isDragging = true;
+      startX = e.clientX - offsetX;
+      startY = e.clientY - offsetY;
+    });
+
+    container.addEventListener('mousemove', e => {
+      if (!isDragging) return;
+      offsetX = e.clientX - startX;
+      offsetY = e.clientY - startY;
+      scannedImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+    });
+
+    container.addEventListener('mouseup', () => isDragging = false);
+    container.addEventListener('mouseleave', () => isDragging = false);
+
+    container.addEventListener('wheel', e => {
+      e.preventDefault();
+      const delta = e.deltaY < 0 ? 1.05 : 0.95;
+      scale *= delta;
+      scannedImage.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
     });
 
     getCameras().then(() => startCamera());
